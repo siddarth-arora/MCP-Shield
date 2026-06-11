@@ -1,0 +1,15 @@
+roles:
+  analyst:
+    allowed_tools:
+      - query_db
+      - read_report
+      - list_tables
+    denied_tools:
+      - delete_record
+      - drop_table
+      - export_all
+  admin:
+    allowed_tools:
+      - '*'
+  untrusted:
+    allowed_tools: []
