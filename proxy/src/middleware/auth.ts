@@ -10,11 +10,12 @@ declare module "fastify" {
     sessionId: string;
     rawToken: string;
     // Set by /mcp handler (or authMiddleware for hijack) before onResponse fires
-    decision: "allow" | "block" | "hijack";
+    decision: "allow" | "block" | "hijack" | "error";
     startTime: number;
     rawBody: string;
     toolName: string;
     policyRule: string | null;
+    targetServer: string | null;
   }
 }
 

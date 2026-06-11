@@ -4,10 +4,11 @@ export interface AuditEntry {
   agent_id: string;
   session_id: string;
   tool_name: string;
-  decision: "allow" | "block" | "hijack";
+  decision: "allow" | "block" | "hijack" | "error";
   policy_rule?: string | null;
   request_hash: string;
   latency_ms?: number | null;
+  target_server?: string | null;
 }
 
 export interface AgentRiskState {

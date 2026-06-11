@@ -10,9 +10,9 @@ import { policyEngine } from "./policy";
 import { write, getRecent, getStats, getThreats, getRiskScores } from "./audit";
 import { registerEventsRoute } from "./routes/events";
 import { registerPolicyRoutes } from "./routes/policy";
+import { router } from "./router";
 
 const PORT = parseInt(process.env["PROXY_PORT"] ?? "4000", 10);
-const TARGET = process.env["TARGET_MCP_URL"] ?? "http://localhost:3001";
 const CORS_ORIGIN = process.env["CORS_ORIGIN"] ?? "http://localhost:5173";
 
 async function start() {
@@ -38,6 +38,7 @@ async function start() {
           decision: request.decision,
           policy_rule: request.policyRule,
           latency_ms: Date.now() - request.startTime,
+          target_server: request.targetServer ?? null,
         },
         request.rawBody
       );
@@ -63,6 +64,14 @@ async function start() {
 
   app.get("/risk-scores", async (_request, reply) => {
     return reply.send(getRiskScores());
+  });
+
+  app.get("/routes", async (_request, reply) => {
+    return reply.send(router.getRoutes());
+  });
+
+  app.get("/servers", async (_request, reply) => {
+    return reply.send(router.getServers());
   });
 
   app.post<{ Body: JsonRpcRequest }>("/mcp", { preHandler: authMiddleware }, async (request, reply) => {
@@ -95,7 +104,24 @@ async function start() {
     }
 
     request.decision = "allow";
-    const result = await forward(request.body, `${TARGET}/mcp`);
+    const { serverName, url } = router.resolve(toolName);
+    request.targetServer = serverName;
+
+    let result: unknown;
+    try {
+      result = await forward(request.body, `${url}/mcp`);
+    } catch {
+      request.decision = "error";
+      return reply.code(502).send({
+        jsonrpc: "2.0",
+        id: request.body.id,
+        error: {
+          code: -32603,
+          message: "Target server unavailable",
+          data: { server: serverName, url },
+        },
+      });
+    }
     return reply.send(result);
   });
 

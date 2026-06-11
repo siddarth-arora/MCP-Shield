@@ -6,6 +6,7 @@ import { ViolationAlert } from "./components/ViolationAlert";
 import { SessionTimeline } from "./components/SessionTimeline";
 import { ThreatFeed } from "./components/ThreatFeed";
 import { RiskPanel } from "./components/RiskPanel";
+import { RoutingMap } from "./components/RoutingMap";
 import { PolicyEditor } from "./components/PolicyEditor";
 
 const PROXY_EVENTS_URL = "http://localhost:4000/events";
@@ -13,6 +14,7 @@ const PROXY_EVENTS_URL = "http://localhost:4000/events";
 export default function App() {
   const { rows, threats, riskScores, connected } = useAuditStream(PROXY_EVENTS_URL);
   const [policyOpen, setPolicyOpen] = useState(false);
+  const [routingOpen, setRoutingOpen] = useState(false);
 
   // Pulse the threat badge when a new CRITICAL/HIGH threat arrives
   const [pulse, setPulse] = useState(false);
@@ -107,6 +109,24 @@ export default function App() {
           </div>
         </div>
       </div>
+
+      {/* Routing map — collapsible */}
+      <section className="mt-6 border border-gray-800 rounded-lg overflow-hidden">
+        <button
+          onClick={() => setRoutingOpen((o) => !o)}
+          className="w-full flex items-center justify-between px-4 py-3 bg-gray-900 hover:bg-gray-800 transition-colors text-left"
+        >
+          <span className="text-xs font-semibold uppercase tracking-widest text-gray-400">
+            Routing Map
+          </span>
+          <span className="text-gray-600 text-sm">{routingOpen ? "▲" : "▼"}</span>
+        </button>
+        {routingOpen && (
+          <div className="p-4 border-t border-gray-800">
+            <RoutingMap rows={rows} />
+          </div>
+        )}
+      </section>
 
       {/* Policy editor — collapsible */}
       <section className="mt-8 border border-gray-800 rounded-lg overflow-hidden">

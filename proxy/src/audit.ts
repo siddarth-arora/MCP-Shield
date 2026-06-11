@@ -11,21 +11,29 @@ const db = new Database(dbPath);
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS audit_log (
-    id           INTEGER PRIMARY KEY AUTOINCREMENT,
-    ts           TEXT    NOT NULL,
-    agent_id     TEXT    NOT NULL,
-    session_id   TEXT    NOT NULL,
-    tool_name    TEXT    NOT NULL,
-    decision     TEXT    NOT NULL CHECK(decision IN ('allow','block','hijack')),
-    policy_rule  TEXT,
-    request_hash TEXT    NOT NULL,
-    latency_ms   INTEGER
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts            TEXT    NOT NULL,
+    agent_id      TEXT    NOT NULL,
+    session_id    TEXT    NOT NULL,
+    tool_name     TEXT    NOT NULL,
+    decision      TEXT    NOT NULL CHECK(decision IN ('allow','block','hijack','error')),
+    policy_rule   TEXT,
+    request_hash  TEXT    NOT NULL,
+    latency_ms    INTEGER,
+    target_server TEXT
   )
 `);
 
+// Migration: add target_server to databases created before this column existed
+try {
+  db.exec("ALTER TABLE audit_log ADD COLUMN target_server TEXT");
+} catch {
+  // Column already exists — expected on restart
+}
+
 const insertStmt = db.prepare(`
-  INSERT INTO audit_log (ts, agent_id, session_id, tool_name, decision, policy_rule, request_hash, latency_ms)
-  VALUES (@ts, @agent_id, @session_id, @tool_name, @decision, @policy_rule, @request_hash, @latency_ms)
+  INSERT INTO audit_log (ts, agent_id, session_id, tool_name, decision, policy_rule, request_hash, latency_ms, target_server)
+  VALUES (@ts, @agent_id, @session_id, @tool_name, @decision, @policy_rule, @request_hash, @latency_ms, @target_server)
 `);
 
 const recentStmt = db.prepare(
@@ -84,8 +92,15 @@ export function write(
   const request_hash = crypto.createHash("sha256").update(rawBody).digest("hex");
   const row: Omit<AuditEntry, "id"> = { ...entry, request_hash };
 
-  const { lastInsertRowid } = insertStmt.run(row);
-  const fullRow: AuditEntry = { ...row, id: Number(lastInsertRowid) };
+  let rowId: number | undefined;
+  try {
+    const { lastInsertRowid } = insertStmt.run(row);
+    rowId = Number(lastInsertRowid);
+  } catch (err) {
+    // Old DB with stricter CHECK constraint (e.g. missing 'error') — log but continue
+    console.error("[audit] DB write failed:", err);
+  }
+  const fullRow: AuditEntry = { ...row, ...(rowId !== undefined ? { id: rowId } : {}) };
 
   const auditEvent = `data: ${JSON.stringify({ type: "audit", row: fullRow })}\n\n`;
   for (const client of sseClients) {

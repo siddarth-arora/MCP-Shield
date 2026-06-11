@@ -8,8 +8,15 @@ interface RolePolicy {
   denied_tools?: string[];
 }
 
-interface PolicyFile {
+export interface ServerDef {
+  url: string;
+  description?: string;
+}
+
+export interface PolicyFile {
   roles: Record<string, RolePolicy>;
+  servers?: Record<string, ServerDef>;
+  routes?: Record<string, string>;
 }
 
 export interface CheckResult {
@@ -21,6 +28,7 @@ export interface CheckResult {
 export class PolicyEngine {
   private policy!: PolicyFile;
   private readonly policyPath: string;
+  private readonly reloadListeners: Array<() => void> = [];
 
   constructor() {
     this.policyPath = path.resolve(
@@ -41,10 +49,19 @@ export class PolicyEngine {
       try {
         this.reload();
         console.log(`[policy] Hot-reloaded ${this.policyPath}`);
+        for (const cb of this.reloadListeners) cb();
       } catch (err) {
         console.error("[policy] Reload failed — keeping previous policy:", err);
       }
     });
+  }
+
+  onReload(cb: () => void): void {
+    this.reloadListeners.push(cb);
+  }
+
+  getPolicy(): PolicyFile {
+    return this.policy;
   }
 
   check(role: string, toolName: string): CheckResult {
