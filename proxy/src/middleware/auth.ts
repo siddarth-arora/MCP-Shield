@@ -16,6 +16,7 @@ declare module "fastify" {
     toolName: string;
     policyRule: string | null;
     targetServer: string | null;
+    accessRequestId: string | null;
   }
 }
 

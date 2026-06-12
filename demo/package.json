@@ -2,7 +2,10 @@
   "name": "demo",
   "version": "1.0.0",
   "scripts": {
-    "gen-tokens": "ts-node gen-tokens.ts"
+    "gen-tokens": "ts-node gen-tokens.ts",
+    "agent-a": "ts-node agent-a.ts",
+    "agent-b": "ts-node agent-b.ts",
+    "agent-c": "ts-node agent-c.ts"
   },
   "dependencies": {
     "dotenv": "^17.4.2",

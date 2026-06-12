@@ -9,6 +9,24 @@ export interface AuditEntry {
   request_hash: string;
   latency_ms?: number | null;
   target_server?: string | null;
+  access_request_id?: string | null;
+}
+
+export interface AccessRequest {
+  id: string;
+  createdAt: string;
+  agentId: string;
+  agentRole: string;
+  toolName: string;
+  targetServer?: string;
+  policyRule: string;
+  reason: string;
+  sessionId: string;
+  requestHash: string;
+  status: "PENDING" | "APPROVED" | "DENIED";
+  resolvedAt?: string;
+  resolvedBy?: string;
+  resolutionNote?: string;
 }
 
 export interface AgentRiskState {

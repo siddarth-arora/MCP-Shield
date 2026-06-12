@@ -19,21 +19,19 @@ db.exec(`
     decision      TEXT    NOT NULL CHECK(decision IN ('allow','block','hijack','error')),
     policy_rule   TEXT,
     request_hash  TEXT    NOT NULL,
-    latency_ms    INTEGER,
-    target_server TEXT
+    latency_ms         INTEGER,
+    target_server      TEXT,
+    access_request_id  TEXT
   )
 `);
 
-// Migration: add target_server to databases created before this column existed
-try {
-  db.exec("ALTER TABLE audit_log ADD COLUMN target_server TEXT");
-} catch {
-  // Column already exists — expected on restart
-}
+// Migrations: add columns to databases created before they existed
+try { db.exec("ALTER TABLE audit_log ADD COLUMN target_server TEXT"); } catch { /* exists */ }
+try { db.exec("ALTER TABLE audit_log ADD COLUMN access_request_id TEXT"); } catch { /* exists */ }
 
 const insertStmt = db.prepare(`
-  INSERT INTO audit_log (ts, agent_id, session_id, tool_name, decision, policy_rule, request_hash, latency_ms, target_server)
-  VALUES (@ts, @agent_id, @session_id, @tool_name, @decision, @policy_rule, @request_hash, @latency_ms, @target_server)
+  INSERT INTO audit_log (ts, agent_id, session_id, tool_name, decision, policy_rule, request_hash, latency_ms, target_server, access_request_id)
+  VALUES (@ts, @agent_id, @session_id, @tool_name, @decision, @policy_rule, @request_hash, @latency_ms, @target_server, @access_request_id)
 `);
 
 const recentStmt = db.prepare(
@@ -79,6 +77,13 @@ export function addSseClient(stream: Writable): void {
 
 export function removeSseClient(stream: Writable): void {
   sseClients.delete(stream);
+}
+
+export function broadcastSse(data: unknown): void {
+  const event = `data: ${JSON.stringify(data)}\n\n`;
+  sseClients.forEach((client) => {
+    if (!client.writableEnded) client.write(event);
+  });
 }
 
 export function getRecent(limit = 50): AuditEntry[] {

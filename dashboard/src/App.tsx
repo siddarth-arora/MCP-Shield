@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { useAuditStream } from "./hooks/useAuditStream";
 import { StatsBar } from "./components/StatsBar";
 import { ActivityFeed } from "./components/ActivityFeed";
@@ -12,7 +13,8 @@ import { PolicyEditor } from "./components/PolicyEditor";
 const PROXY_EVENTS_URL = "http://localhost:4000/events";
 
 export default function App() {
-  const { rows, threats, riskScores, connected } = useAuditStream(PROXY_EVENTS_URL);
+  const { rows, threats, riskScores, accessRequests, connected } = useAuditStream(PROXY_EVENTS_URL);
+  const pendingCount = Object.values(accessRequests).filter((r) => r.status === "PENDING").length;
   const [policyOpen, setPolicyOpen] = useState(false);
   const [routingOpen, setRoutingOpen] = useState(false);
 
@@ -48,9 +50,20 @@ export default function App() {
               className={`inline-flex items-center justify-center w-6 h-6 rounded-full bg-red-600 text-white text-xs font-bold ${
                 pulse ? "animate-pulse" : ""
               }`}
+              title={`${threats.length} threat${threats.length !== 1 ? "s" : ""}`}
             >
               {threats.length > 99 ? "99+" : threats.length}
             </span>
+          )}
+          {pendingCount > 0 && (
+            <Link
+              to="/access"
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-800/80 border border-orange-600 text-orange-200 text-xs font-semibold hover:bg-orange-700/80 transition-colors"
+              title={`${pendingCount} pending access request${pendingCount !== 1 ? "s" : ""}`}
+            >
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />
+              {pendingCount} pending
+            </Link>
           )}
         </div>
         <div className="flex items-center gap-2 text-xs">

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { AuditEntry, AgentRiskState, ThreatEvent } from "../types";
+import type { AuditEntry, AgentRiskState, ThreatEvent, AccessRequest } from "../types";
 
 const MAX_ROWS = 200;
 const MAX_THREATS = 50;
@@ -8,6 +8,7 @@ export interface AuditStream {
   rows: AuditEntry[];
   threats: ThreatEvent[];
   riskScores: Record<string, AgentRiskState>;
+  accessRequests: Record<string, AccessRequest>;
   connected: boolean;
 }
 
@@ -15,6 +16,7 @@ export function useAuditStream(url: string): AuditStream {
   const [rows, setRows] = useState<AuditEntry[]>([]);
   const [threats, setThreats] = useState<ThreatEvent[]>([]);
   const [riskScores, setRiskScores] = useState<Record<string, AgentRiskState>>({});
+  const [accessRequests, setAccessRequests] = useState<Record<string, AccessRequest>>({});
   const [connected, setConnected] = useState(false);
   const esRef = useRef<EventSource | null>(null);
 
@@ -30,7 +32,8 @@ export function useAuditStream(url: string): AuditStream {
         const payload = JSON.parse(e.data) as
           | { type: "audit"; row: AuditEntry }
           | { type: "threat"; threat: ThreatEvent }
-          | { type: "risk"; agentId: string; state: AgentRiskState };
+          | { type: "risk"; agentId: string; state: AgentRiskState }
+          | { type: "access_request"; request: AccessRequest };
 
         if (payload.type === "audit") {
           setRows((prev) => {
@@ -47,6 +50,11 @@ export function useAuditStream(url: string): AuditStream {
             ...prev,
             [payload.agentId]: payload.state,
           }));
+        } else if (payload.type === "access_request") {
+          setAccessRequests((prev) => ({
+            ...prev,
+            [payload.request.id]: payload.request,
+          }));
         }
       } catch {
         // malformed frame — ignore
@@ -59,5 +67,5 @@ export function useAuditStream(url: string): AuditStream {
     };
   }, [url]);
 
-  return { rows, threats, riskScores, connected };
+  return { rows, threats, riskScores, accessRequests, connected };
 }

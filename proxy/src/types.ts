@@ -37,4 +37,5 @@ export interface AuditEntry {
   request_hash: string;
   latency_ms?: number | null;
   target_server?: string | null;
+  access_request_id?: string | null;
 }

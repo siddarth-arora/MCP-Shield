@@ -1,14 +1,19 @@
-# Existing roles block stays untouched
 roles:
   analyst:
-    allowed_tools: [query_db, list_tables, send_email, generate_report]
-    denied_tools: [delete_record]
+    allowed_tools:
+      - query_db
+      - list_tables
+      - send_email
+      - generate_report
+    denied_tools:
+      - delete_record
+      - drop_table
+      - export_all
   admin:
-    allowed_tools: ["*"]
+    allowed_tools:
+      - '*'
   untrusted:
     allowed_tools: []
-
-# NEW: define named upstream servers
 servers:
   db-server:
     url: http://localhost:3001
@@ -22,14 +27,11 @@ servers:
   default:
     url: http://localhost:3001
     description: Fallback for unmapped tools
-
-# NEW: map tools to servers
 routes:
-  query_db:     db-server
-  list_tables:  db-server
+  query_db: db-server
+  list_tables: db-server
   delete_record: db-server
-  send_email:   api-server
+  send_email: api-server
   webhook_call: api-server
   generate_report: report-server
-  export_pdf:   report-server
-  # anything not listed goes to 'default'
+  export_pdf: report-server

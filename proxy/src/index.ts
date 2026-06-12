@@ -1,4 +1,5 @@
 import * as dotenv from "dotenv";
+import * as crypto from "crypto";
 dotenv.config();
 
 import Fastify from "fastify";
@@ -11,6 +12,7 @@ import { write, getRecent, getStats, getThreats, getRiskScores } from "./audit";
 import { registerEventsRoute } from "./routes/events";
 import { registerPolicyRoutes } from "./routes/policy";
 import { router } from "./router";
+import * as accessRequests from "./access-requests";
 
 const PORT = parseInt(process.env["PROXY_PORT"] ?? "4000", 10);
 const CORS_ORIGIN = process.env["CORS_ORIGIN"] ?? "http://localhost:5173";
@@ -39,6 +41,7 @@ async function start() {
           policy_rule: request.policyRule,
           latency_ms: Date.now() - request.startTime,
           target_server: request.targetServer ?? null,
+          access_request_id: request.accessRequestId ?? null,
         },
         request.rawBody
       );
@@ -74,6 +77,44 @@ async function start() {
     return reply.send(router.getServers());
   });
 
+  // Access requests
+  app.get<{ Querystring: { status?: string; agentId?: string } }>(
+    "/access-requests",
+    async (request, reply) => {
+      return reply.send(accessRequests.getAll(request.query));
+    }
+  );
+
+  app.get<{ Params: { id: string } }>(
+    "/access-requests/:id",
+    async (request, reply) => {
+      const rec = accessRequests.getById(request.params.id);
+      if (!rec) return reply.code(404).send({ error: "Not found" });
+      return reply.send(rec);
+    }
+  );
+
+  app.post<{ Body: Omit<import("./access-requests").AccessRequest, "id" | "createdAt" | "status"> }>(
+    "/access-requests",
+    async (request, reply) => {
+      const rec = accessRequests.create(request.body);
+      return reply.code(201).send(rec);
+    }
+  );
+
+  app.post<{ Params: { id: string }; Body: { status: "APPROVED" | "DENIED"; resolvedBy: string; note?: string } }>(
+    "/access-requests/:id/resolve",
+    async (request, reply) => {
+      const { status, resolvedBy, note } = request.body;
+      if (status !== "APPROVED" && status !== "DENIED") {
+        return reply.code(400).send({ error: "status must be APPROVED or DENIED" });
+      }
+      const rec = accessRequests.resolve(request.params.id, status, resolvedBy, note);
+      if (!rec) return reply.code(404).send({ error: "Not found or already resolved" });
+      return reply.send(rec);
+    }
+  );
+
   app.post<{ Body: JsonRpcRequest }>("/mcp", { preHandler: authMiddleware }, async (request, reply) => {
     request.startTime = Date.now();
     request.rawBody = JSON.stringify(request.body);
@@ -86,6 +127,19 @@ async function start() {
 
     if (!allowed) {
       request.decision = "block";
+      const requestHash = crypto.createHash("sha256").update(request.rawBody).digest("hex");
+      const arec = accessRequests.create({
+        agentId: request.agentClaims.sub,
+        agentRole: request.agentClaims.role,
+        toolName,
+        targetServer: router.resolve(toolName).serverName,
+        policyRule: rule,
+        reason,
+        sessionId: request.sessionId,
+        requestHash,
+      });
+      request.accessRequestId = arec.id;
+      const dashboardUrl = process.env["DASHBOARD_URL"] ?? "http://localhost:5173";
       return reply.code(403).send({
         jsonrpc: "2.0",
         id: request.body.id,
@@ -98,6 +152,11 @@ async function start() {
             tool: toolName,
             reason,
             policy_rule: rule,
+            access_request: {
+              id: arec.id,
+              portal_url: `${dashboardUrl}/access/${arec.id}`,
+              message: `To request access, visit go/mcpaccess with ID ${arec.id}`,
+            },
           },
         },
       });

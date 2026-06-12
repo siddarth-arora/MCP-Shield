@@ -1,6 +1,7 @@
 import { PassThrough } from "stream";
 import type { FastifyInstance } from "fastify";
 import { addSseClient, removeSseClient, getRecent, getThreats, getRiskScores } from "../audit";
+import { getAll as getAccessRequests } from "../access-requests";
 
 export function registerEventsRoute(app: FastifyInstance): void {
   app.get("/events", (request, reply) => {
@@ -29,6 +30,9 @@ export function registerEventsRoute(app: FastifyInstance): void {
     const riskScores = getRiskScores();
     for (const [agentId, state] of Object.entries(riskScores)) {
       stream.write(`data: ${JSON.stringify({ type: "risk", agentId, state })}\n\n`);
+    }
+    for (const request of getAccessRequests({ status: "PENDING" })) {
+      stream.write(`data: ${JSON.stringify({ type: "access_request", request })}\n\n`);
     }
 
     addSseClient(stream);
