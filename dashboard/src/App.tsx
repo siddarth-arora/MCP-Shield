@@ -12,22 +12,67 @@ import { PolicyEditor } from "./components/PolicyEditor";
 
 const PROXY_EVENTS_URL = "http://localhost:4000/events";
 
+function ShieldLogo() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75}
+      strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-indigo-400">
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+    </svg>
+  );
+}
+
+function ChevronIcon({ open }: { open: boolean }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="currentColor"
+      className={`w-4 h-4 text-zinc-600 transition-transform duration-200 ${open ? "rotate-180" : ""}`}>
+      <path fillRule="evenodd" d="M5.22 8.22a.75.75 0 011.06 0L10 11.94l3.72-3.72a.75.75 0 111.06 1.06l-4.25 4.25a.75.75 0 01-1.06 0L5.22 9.28a.75.75 0 010-1.06z" clipRule="evenodd" />
+    </svg>
+  );
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <h2 className="text-xs font-semibold uppercase tracking-widest text-zinc-600">
+      {children}
+    </h2>
+  );
+}
+
+function Collapsible({ label, children, defaultOpen = false }: {
+  label: string; children: React.ReactNode; defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="rounded-xl border border-white/6 overflow-hidden">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between px-5 py-3.5 bg-zinc-900
+                   hover:bg-zinc-800/60 transition-colors text-left"
+      >
+        <span className="text-xs font-semibold uppercase tracking-widest text-zinc-500">{label}</span>
+        <ChevronIcon open={open} />
+      </button>
+      {open && (
+        <div className="p-5 border-t border-white/6 bg-zinc-950/40 animate-fade-in">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function App() {
   const { rows, threats, riskScores, accessRequests, connected } = useAuditStream(PROXY_EVENTS_URL);
   const pendingCount = Object.values(accessRequests).filter((r) => r.status === "PENDING").length;
-  const [policyOpen, setPolicyOpen] = useState(false);
-  const [routingOpen, setRoutingOpen] = useState(false);
 
-  // Pulse the threat badge when a new CRITICAL/HIGH threat arrives
-  const [pulse, setPulse] = useState(false);
+  const [threatPulse, setThreatPulse] = useState(false);
   const prevThreatCount = useRef(0);
   useEffect(() => {
-    const newCount = threats.length - prevThreatCount.current;
-    if (newCount > 0) {
+    if (threats.length > prevThreatCount.current) {
       const latest = threats[0];
       if (latest && (latest.severity === "CRITICAL" || latest.severity === "HIGH")) {
-        setPulse(true);
-        const t = setTimeout(() => setPulse(false), 2000);
+        setThreatPulse(true);
+        const t = setTimeout(() => setThreatPulse(false), 2000);
         return () => clearTimeout(t);
       }
     }
@@ -35,129 +80,105 @@ export default function App() {
   }, [threats]);
 
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100 p-6">
-      {/* Header */}
-      <header className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <div>
-            <h1 className="text-xl font-bold tracking-tight text-white">
-              MCP-Shield — Compliance Dashboard
-            </h1>
-            <p className="text-gray-500 text-xs mt-0.5">Real-time agent policy enforcement</p>
+    <div className="min-h-screen bg-zinc-950 text-zinc-100">
+
+      {/* ── Sticky header ───────────────────────────────────────────── */}
+      <header className="sticky top-0 z-40 border-b border-white/6 bg-zinc-950/80 backdrop-blur-md">
+        <div className="max-w-7xl mx-auto px-6 h-14 flex items-center gap-4">
+
+          {/* Logo + title */}
+          <div className="flex items-center gap-2.5">
+            <ShieldLogo />
+            <span className="text-sm font-bold tracking-tight text-zinc-100">MCP-Shield</span>
+            <span className="hidden sm:block text-zinc-700 text-xs">/ Compliance Dashboard</span>
           </div>
-          {threats.length > 0 && (
-            <span
-              className={`inline-flex items-center justify-center w-6 h-6 rounded-full bg-red-600 text-white text-xs font-bold ${
-                pulse ? "animate-pulse" : ""
-              }`}
-              title={`${threats.length} threat${threats.length !== 1 ? "s" : ""}`}
-            >
-              {threats.length > 99 ? "99+" : threats.length}
-            </span>
-          )}
-          {pendingCount > 0 && (
-            <Link
-              to="/access"
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-800/80 border border-orange-600 text-orange-200 text-xs font-semibold hover:bg-orange-700/80 transition-colors"
-              title={`${pendingCount} pending access request${pendingCount !== 1 ? "s" : ""}`}
-            >
-              <span className="inline-block w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />
-              {pendingCount} pending
-            </Link>
-          )}
-        </div>
-        <div className="flex items-center gap-2 text-xs">
-          <span
-            className={`inline-block w-2 h-2 rounded-full ${
-              connected ? "bg-green-400 animate-pulse" : "bg-red-500"
-            }`}
-          />
-          <span className={connected ? "text-green-400" : "text-red-400"}>
-            {connected ? "Live" : "Disconnected"}
-          </span>
+
+          <div className="flex-1" />
+
+          {/* Badges */}
+          <div className="flex items-center gap-2">
+            {threats.length > 0 && (
+              <span
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full
+                             bg-rose-500/10 text-rose-400 ring-1 ring-rose-500/20
+                             text-xs font-semibold transition-all
+                             ${threatPulse ? "animate-pulse" : ""}`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                {threats.length} threat{threats.length !== 1 ? "s" : ""}
+              </span>
+            )}
+
+            {pendingCount > 0 && (
+              <Link
+                to="/access"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full
+                           bg-amber-500/10 text-amber-400 ring-1 ring-amber-500/20
+                           text-xs font-semibold hover:bg-amber-500/15 transition-colors"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-blink" />
+                {pendingCount} pending
+              </Link>
+            )}
+
+            {/* Connection status */}
+            <div className="flex items-center gap-1.5 pl-2 border-l border-white/6">
+              <span className={`w-1.5 h-1.5 rounded-full ${connected ? "bg-emerald-500 animate-pulse" : "bg-zinc-600"}`} />
+              <span className={`text-xs font-medium ${connected ? "text-emerald-400" : "text-zinc-600"}`}>
+                {connected ? "Live" : "Disconnected"}
+              </span>
+            </div>
+          </div>
         </div>
       </header>
 
-      {/* Stats */}
-      <section className="mb-4">
+      {/* ── Page body ───────────────────────────────────────────────── */}
+      <main className="max-w-7xl mx-auto px-6 py-6 space-y-6">
+
+        {/* Stats */}
         <StatsBar rows={rows} />
-      </section>
 
-      {/* Risk panel — full width, below stats */}
-      <section className="mb-6">
+        {/* Risk gauges */}
         <RiskPanel riskScores={riskScores} />
-      </section>
 
-      {/* Main grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Activity feed — widest column */}
-        <div className="lg:col-span-2 space-y-3">
-          <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-500">
-            Activity Feed
-          </h2>
-          <ActivityFeed rows={rows} />
-        </div>
+        {/* Main grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-        {/* Right column */}
-        <div className="space-y-6">
-          <div className="space-y-3">
-            <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-500">
-              Threat Feed
-            </h2>
-            <ThreatFeed threats={threats} />
+          {/* Activity feed — 2 cols */}
+          <div className="lg:col-span-2 space-y-3">
+            <SectionLabel>Activity Feed</SectionLabel>
+            <ActivityFeed rows={rows} />
           </div>
 
-          <div className="space-y-3">
-            <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-500">
-              Violations
-            </h2>
-            <ViolationAlert rows={rows} />
-          </div>
+          {/* Right column */}
+          <div className="space-y-6">
+            <div className="space-y-3">
+              <SectionLabel>Threats</SectionLabel>
+              <ThreatFeed threats={threats} />
+            </div>
 
-          <div className="space-y-3">
-            <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-500">
-              Session Timeline
-            </h2>
-            <SessionTimeline rows={rows} />
+            <div className="space-y-3">
+              <SectionLabel>Recent Violations</SectionLabel>
+              <ViolationAlert rows={rows} />
+            </div>
+
+            <div className="space-y-3">
+              <SectionLabel>Session Timeline</SectionLabel>
+              <SessionTimeline rows={rows} />
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Routing map — collapsible */}
-      <section className="mt-6 border border-gray-800 rounded-lg overflow-hidden">
-        <button
-          onClick={() => setRoutingOpen((o) => !o)}
-          className="w-full flex items-center justify-between px-4 py-3 bg-gray-900 hover:bg-gray-800 transition-colors text-left"
-        >
-          <span className="text-xs font-semibold uppercase tracking-widest text-gray-400">
-            Routing Map
-          </span>
-          <span className="text-gray-600 text-sm">{routingOpen ? "▲" : "▼"}</span>
-        </button>
-        {routingOpen && (
-          <div className="p-4 border-t border-gray-800">
-            <RoutingMap rows={rows} />
-          </div>
-        )}
-      </section>
+        {/* Collapsible panels */}
+        <Collapsible label="Routing Map">
+          <RoutingMap rows={rows} />
+        </Collapsible>
 
-      {/* Policy editor — collapsible */}
-      <section className="mt-8 border border-gray-800 rounded-lg overflow-hidden">
-        <button
-          onClick={() => setPolicyOpen((o) => !o)}
-          className="w-full flex items-center justify-between px-4 py-3 bg-gray-900 hover:bg-gray-800 transition-colors text-left"
-        >
-          <span className="text-xs font-semibold uppercase tracking-widest text-gray-400">
-            Policy Editor
-          </span>
-          <span className="text-gray-600 text-sm">{policyOpen ? "▲" : "▼"}</span>
-        </button>
-        {policyOpen && (
-          <div className="p-4 border-t border-gray-800">
-            <PolicyEditor />
-          </div>
-        )}
-      </section>
+        <Collapsible label="Policy Editor">
+          <PolicyEditor />
+        </Collapsible>
+
+      </main>
     </div>
   );
 }
